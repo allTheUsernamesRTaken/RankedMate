@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard - Rubbing Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .navbar {
+            background: #2a2a2a;
+            padding: 15px 20px;
+            border-bottom: 2px solid #4CAF50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .navbar-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .navbar-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .navbar-button {
+            padding: 8px 16px;
+            background: #1a1a1a;
+            color: #fff;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .navbar-button:hover {
+            background: #3a3a3a;
+        }
+        
+        .navbar-username {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .username-input {
+            background: #1a1a1a;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            padding: 6px 12px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            width: 150px;
+            outline: none;
+        }
+        
+        .username-input:focus {
+            border-color: #66ff66;
+            background: #2a2a2a;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4CAF50;
+        }
+        
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .leaderboard-table thead {
+            background: #1a1a1a;
+        }
+        
+        .leaderboard-table th {
+            padding: 15px;
+            text-align: left;
+            color: #4CAF50;
+            font-weight: bold;
+            border-bottom: 2px solid #4CAF50;
+        }
+        
+        .leaderboard-table td {
+            padding: 15px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        
+        .leaderboard-table tbody tr:hover {
+            background: #3a3a3a;
+        }
+        
+        .rank {
+            font-weight: bold;
+            font-size: 18px;
+            color: #4CAF50;
+            text-align: center;
+        }
+        
+        .rank.gold {
+            color: #FFD700;
+        }
+        
+        .rank.silver {
+            color: #C0C0C0;
+        }
+        
+        .rank.bronze {
+            color: #CD7F32;
+        }
+        
+        .username {
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .score-value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .score-value.max {
+            color: #FFD700;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #aaa;
+        }
+        
+        .error-message {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error-message.active {
+            display: block;
+        }
+        
+        .refresh-button {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .refresh-button:hover {
+            background: #66ff66;
+        }
+        
+        .contact-button {
+            padding: 6px 12px;
+            background: #1a1a1a;
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .contact-button:hover {
+            background: #3a3a3a;
+            border-color: #66ff66;
+            color: #66ff66;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-title">🥕 Rubbing Analyzer</div>
+        <div class="navbar-right">
+            <a href="/" class="navbar-button">Home</a>
+            <input type="text" class="username-input" id="usernameInput" value="Daniel Guo" placeholder="Enter username">
+        </div>
+    </nav>
+    
+    <div class="container">
+        <h1>🏆 Leaderboard</h1>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <button class="refresh-button" onclick="loadLeaderboard()">Refresh</button>
+        
+        <div id="loading" class="loading">Loading leaderboard...</div>
+        
+        <table class="leaderboard-table" id="leaderboardTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Rank</th>
+                    <th>Username</th>
+                    <th>Avg Total Score</th>
+                    <th>Highest Score</th>
+                    <th>Std Deviation</th>
+                    <th># of Scores</th>
+                    <th style="width: 100px;">Contact</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboardBody">
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+            
+            setTimeout(() => {
+                errorDiv.classList.remove('active');
+            }, 5000);
+        }
+        
+        async function loadLeaderboard() {
+            const loading = document.getElementById('loading');
+            const table = document.getElementById('leaderboardTable');
+            const tbody = document.getElementById('leaderboardBody');
+            
+            loading.style.display = 'block';
+            table.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/leaderboard');
+                const data = await response.json();
+                
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    data.leaderboard.forEach((entry, index) => {
+                        const row = document.createElement('tr');
+                        
+                        // Rank with special styling for top 3
+                        const rankCell = document.createElement('td');
+                        rankCell.className = 'rank';
+                        if (index === 0) {
+                            rankCell.className += ' gold';
+                            rankCell.textContent = '🥇';
+                        } else if (index === 1) {
+                            rankCell.className += ' silver';
+                            rankCell.textContent = '🥈';
+                        } else if (index === 2) {
+                            rankCell.className += ' bronze';
+                            rankCell.textContent = '🥉';
+                        } else {
+                            rankCell.textContent = (index + 1).toString();
+                        }
+                        
+                        // Username
+                        const usernameCell = document.createElement('td');
+                        usernameCell.className = 'username';
+                        usernameCell.textContent = entry.username;
+                        
+                        // Average score
+                        const avgCell = document.createElement('td');
+                        avgCell.className = 'score-value';
+                        avgCell.textContent = entry.avg_score.toFixed(2);
+                        
+                        // Max score
+                        const maxCell = document.createElement('td');
+                        maxCell.className = 'score-value max';
+                        maxCell.textContent = entry.max_score.toFixed(2);
+                        
+                        // Std deviation
+                        const stdCell = document.createElement('td');
+                        stdCell.textContent = entry.std_dev.toFixed(2);
+                        
+                        // Number of scores
+                        const numCell = document.createElement('td');
+                        numCell.textContent = entry.num_scores.toString();
+                        
+                        // Contact button
+                        const contactCell = document.createElement('td');
+                        const contactButton = document.createElement('button');
+                        contactButton.className = 'contact-button';
+                        contactButton.textContent = 'Contact';
+                        contactButton.onclick = function() {
+                            // Button doesn't do anything, just for appearance
+                        };
+                        contactCell.appendChild(contactButton);
+                        
+                        row.appendChild(rankCell);
+                        row.appendChild(usernameCell);
+                        row.appendChild(avgCell);
+                        row.appendChild(maxCell);
+                        row.appendChild(stdCell);
+                        row.appendChild(numCell);
+                        row.appendChild(contactCell);
+                        
+                        tbody.appendChild(row);
+                    });
+                    
+                    loading.style.display = 'none';
+                    table.style.display = 'table';
+                } else {
+                    loading.textContent = 'No scores yet. Be the first to submit!';
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                showError('Failed to load leaderboard: ' + error.message);
+                console.error('Error loading leaderboard:', error);
+            }
+        }
+        
+        // Setup username input with localStorage persistence
+        function setupUsernameInput() {
+            const usernameInput = document.getElementById('usernameInput');
+            
+            // Load saved username from localStorage
+            const savedUsername = localStorage.getItem('rubbingAnalyzer_username');
+            if (savedUsername) {
+                usernameInput.value = savedUsername;
+            }
+            
+            // Save username to localStorage when changed
+            usernameInput.addEventListener('change', function() {
+                const username = this.value.trim();
+                if (username) {
+                    localStorage.setItem('rubbingAnalyzer_username', username);
+                }
+            });
+            
+            // Also save on blur (when user clicks away)
+            usernameInput.addEventListener('blur', function() {
+                const username = this.value.trim();
+                if (username) {
+                    localStorage.setItem('rubbingAnalyzer_username', username);
+                }
+            });
+        }
+        
+        // Load leaderboard on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setupUsernameInput();
+            loadLeaderboard();
+        });
+    </script>
+</body>
+</html>
+

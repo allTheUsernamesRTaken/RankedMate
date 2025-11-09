@@ -6,8 +6,36 @@ import time
 import json
 import threading
 import base64
+import os
+from werkzeug.utils import secure_filename
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
+
+# Database setup
+DB_NAME = 'leaderboard.db'
+
+def init_database():
+    """Initialize the leaderboard database"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            total_score REAL NOT NULL,
+            jerk_score REAL NOT NULL,
+            nut_value REAL NOT NULL,
+            timestamp TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    print("[DEBUG] Database initialized")
+
+# Initialize database on startup
+init_database()
 
 class CarrotRubbingDetector:
     def __init__(self, buffer_seconds=2, fps=30, roi_mode='auto', update_every=3):
@@ -43,6 +71,7 @@ class CarrotRubbingDetector:
         self.timer_start_time = None
         self.timer_duration = 0.0
         self.timer_motion_log = []  # Log of (timestamp, vertical_motion) during timer
+        self.last_analytics = None  # Store last analytics for score retrieval
         
     def setup_roi(self, frame):
         """Setup ROI based on mode"""
@@ -194,7 +223,7 @@ class CarrotRubbingDetector:
         # Draw motion history graph
         if len(self.motion_history) > 1:
             graph_h = 100
-            graph_w = 300
+            graph_w = 200  # Reduced from 300 to make it less wide
             graph_x, graph_y = vis.shape[1] - graph_w - 10, 10
             
             cv2.rectangle(vis, (graph_x, graph_y), 
@@ -240,9 +269,89 @@ class CarrotRubbingDetector:
             
             # Calculate analytics
             analytics = self.get_analytics()
+            self.last_analytics = analytics  # Store for later retrieval
             print(f"[DEBUG] Timer stopped. Duration: {self.timer_duration:.2f}s, Log entries: {len(self.timer_motion_log)}")
             return analytics
         return None
+    
+    def calculate_pattern_consistency(self, timer_motion_log):
+        """
+        Calculate pattern consistency by measuring regularity of oscillation periods.
+        Finds zero-crossings and measures consistency of time between direction changes.
+        Lower std dev of periods = more consistent pattern.
+        """
+        if len(timer_motion_log) < 4:  # Need at least a few points
+            return 1.0  # Default to perfect consistency if not enough data
+        
+        times = np.array([t for t, _ in timer_motion_log])
+        motions = np.array([m for _, m in timer_motion_log])
+        
+        # Find zero-crossings (where motion changes sign)
+        # We'll look for sign changes in the motion values
+        zero_crossings = []
+        for i in range(1, len(motions)):
+            if (motions[i-1] >= 0 and motions[i] < 0) or (motions[i-1] < 0 and motions[i] >= 0):
+                # Linear interpolation to find exact zero-crossing time
+                if motions[i-1] != motions[i]:
+                    t_ratio = -motions[i-1] / (motions[i] - motions[i-1])
+                    zero_time = times[i-1] + t_ratio * (times[i] - times[i-1])
+                    zero_crossings.append(zero_time)
+        
+        # If we don't have enough zero-crossings, use peak detection instead
+        if len(zero_crossings) < 2:
+            # Simple peak/valley detection
+            # Find local maxima (peaks) and minima (valleys)
+            peaks = []
+            valleys = []
+            window = max(1, len(motions) // 20)  # Minimum distance between peaks
+            
+            for i in range(window, len(motions) - window):
+                # Check for local maximum (peak)
+                if motions[i] == np.max(motions[i-window:i+window+1]):
+                    peaks.append(i)
+                # Check for local minimum (valley)
+                elif motions[i] == np.min(motions[i-window:i+window+1]):
+                    valleys.append(i)
+            
+            # Combine and sort extrema
+            extrema_indices = sorted(set(peaks + valleys))
+            
+            if len(extrema_indices) >= 2:
+                extrema_times = times[extrema_indices]
+                # Calculate periods between extrema
+                periods = np.diff(extrema_times)
+                if len(periods) > 0:
+                    period_std = np.std(periods)
+                    period_mean = np.mean(periods)
+                    # Coefficient of variation (normalized std dev)
+                    if period_mean > 0:
+                        cv = period_std / period_mean
+                        # Convert to consistency score (lower CV = higher consistency)
+                        # Use 1 / (1 + CV) so perfect consistency (CV=0) = 1.0
+                        consistency = 1.0 / (1.0 + cv)
+                        return float(consistency)
+            
+            # Fallback: if we can't find pattern, return low consistency
+            return 0.1
+        
+        # Calculate periods between zero-crossings
+        periods = np.diff(zero_crossings)
+        
+        if len(periods) == 0:
+            return 0.1
+        
+        # Calculate coefficient of variation (std dev / mean)
+        # This normalizes the std dev by the mean period
+        period_mean = np.mean(periods)
+        if period_mean > 0:
+            period_std = np.std(periods)
+            cv = period_std / period_mean
+            # Convert to consistency score: lower CV = higher consistency
+            # Use 1 / (1 + CV) so perfect consistency (CV=0) = 1.0, higher CV = lower score
+            consistency = 1.0 / (1.0 + cv)
+            return float(consistency)
+        
+        return 0.1
     
     def get_analytics(self):
         """Get analytics from timer motion log"""
@@ -251,6 +360,7 @@ class CarrotRubbingDetector:
                 'duration': self.timer_duration,
                 'average_motion': 0.0,
                 'std_dev': 0.0,
+                'jerk_score': 0.0,
                 'motion_over_time': []
             }
         
@@ -261,16 +371,29 @@ class CarrotRubbingDetector:
                 'duration': self.timer_duration,
                 'average_motion': 0.0,
                 'std_dev': 0.0,
+                'jerk_score': 0.0,
                 'motion_over_time': []
             }
         
         avg_motion = np.mean(motions)
-        std_dev = np.std(motions)
+        
+        # Calculate pattern consistency (0.0 to 1.0, higher = more consistent pattern)
+        pattern_consistency = self.calculate_pattern_consistency(self.timer_motion_log)
+        
+        # For display, we'll show pattern consistency as a percentage (0-100%)
+        # and also keep a "pattern std dev" metric that's inversely related for backward compatibility
+        pattern_std_dev = (1.0 - pattern_consistency) * 10.0  # Scale for display (lower = better)
+        
+        # Calculate jerk score: duration * abs(avg_motion) * pattern_consistency
+        # Higher pattern_consistency = higher score (consistent patterns are rewarded)
+        jerk_score = self.timer_duration * abs(avg_motion) * pattern_consistency
         
         return {
             'duration': self.timer_duration,
             'average_motion': float(avg_motion),
-            'std_dev': float(std_dev),
+            'std_dev': float(pattern_std_dev),  # Now represents pattern inconsistency
+            'pattern_consistency': float(pattern_consistency),  # Add this for reference
+            'jerk_score': float(jerk_score),
             'motion_over_time': self.timer_motion_log  # List of (time, motion) tuples
         }
 
@@ -285,6 +408,85 @@ detector = CarrotRubbingDetector(
 # Global camera instance
 camera = None
 camera_lock = threading.Lock()
+
+# Global nut value storage
+nut_value = 0.0  # Stores the current nut number (0-10)
+
+def detect_square_and_calculate_brightness(image_path):
+    """
+    Detects a black square on white paper and calculates normalized brightness (0-1).
+    Based on detect_square.py logic.
+    
+    Args:
+        image_path: Path to the input image
+    
+    Returns:
+        float: Normalized brightness value (0.0 to 1.0), or None if error
+    """
+    if not os.path.exists(image_path):
+        print(f"[DEBUG] Error: Image file '{image_path}' not found.")
+        return None
+    
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"[DEBUG] Error: Could not read image '{image_path}'.")
+        return None
+    
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    
+    # Apply adaptive thresholding to handle varying lighting conditions
+    thresh = cv2.adaptiveThreshold(
+        blurred, 
+        255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY_INV, 
+        11, 
+        2
+    )
+    
+    # Find contours
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        print("[DEBUG] No contours found in the image.")
+        return None
+    
+    # Find the largest contour (should be the black square)
+    largest_contour = max(contours, key=cv2.contourArea)
+    
+    # Approximate the contour to a polygon
+    epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+    approx = cv2.approxPolyDP(largest_contour, epsilon, True)
+    
+    # Create a mask for the detected square region
+    mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.fillPoly(mask, [approx], 255)
+    
+    # Extract the region of interest (ROI) from the original grayscale image
+    roi = cv2.bitwise_and(gray, gray, mask=mask)
+    
+    # Calculate average brightness within the detected square
+    pixel_count = np.count_nonzero(mask)
+    if pixel_count == 0:
+        print("[DEBUG] No pixels found in detected square.")
+        return None
+    
+    total_brightness = np.sum(roi[mask > 0])
+    average_brightness = total_brightness / pixel_count
+    
+    # Normalize to 0-1 range (0 = black, 255 = white, so divide by 255)
+    normalized_brightness = average_brightness / 255.0
+    
+    print(f"[DEBUG] Square Detection Results:")
+    print(f"  Average brightness: {average_brightness:.2f}")
+    print(f"  Normalized brightness: {normalized_brightness:.4f}")
+    print(f"  Pixel count: {pixel_count}")
+    
+    return normalized_brightness
 
 def get_camera():
     """Get or create camera instance"""
@@ -368,6 +570,176 @@ def timer_status():
         'active': detector.timer_active,
         'elapsed': elapsed
     })
+
+@app.route('/api/nut/upload', methods=['POST'])
+def upload_nut_photo():
+    """Handle photo upload for nut meter analysis"""
+    global nut_value
+    
+    if 'photo' not in request.files:
+        return jsonify({'success': False, 'message': 'No file provided'}), 400
+    
+    file = request.files['photo']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'}), 400
+    
+    # Check if file is an image
+    if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+        return jsonify({'success': False, 'message': 'Invalid file type. Please upload a JPG or PNG image.'}), 400
+    
+    # Save uploaded file temporarily
+    filename = secure_filename(file.filename)
+    upload_path = os.path.join('uploads', filename)
+    
+    # Create uploads directory if it doesn't exist
+    os.makedirs('uploads', exist_ok=True)
+    
+    file.save(upload_path)
+    print(f"[DEBUG] File uploaded: {upload_path}")
+    
+    try:
+        # Analyze the image
+        normalized_brightness = detect_square_and_calculate_brightness(upload_path)
+        
+        if normalized_brightness is None:
+            # Clean up uploaded file
+            if os.path.exists(upload_path):
+                os.remove(upload_path)
+            return jsonify({'success': False, 'message': 'Could not detect square in image. Make sure there is a black square on white paper.'}), 400
+        
+        # Calculate nut number (0-10)
+        nut_value = normalized_brightness * 10.0
+        
+        # Clean up uploaded file
+        if os.path.exists(upload_path):
+            os.remove(upload_path)
+        
+        print(f"[DEBUG] Nut value calculated: {nut_value:.2f}")
+        
+        return jsonify({
+            'success': True,
+            'nut_value': float(nut_value),
+            'normalized_brightness': float(normalized_brightness)
+        })
+    
+    except Exception as e:
+        # Clean up uploaded file
+        if os.path.exists(upload_path):
+            os.remove(upload_path)
+        print(f"[DEBUG] Error processing image: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error processing image: {str(e)}'}), 500
+
+@app.route('/api/nut/value', methods=['GET'])
+def get_nut_value():
+    """Get current nut value"""
+    global nut_value
+    return jsonify({'nut_value': float(nut_value)})
+
+@app.route('/api/scores', methods=['GET'])
+def get_scores():
+    """Get all scores (jerk score, nut value, total)"""
+    global nut_value
+    
+    # Get jerk score from last analytics if available
+    jerk_score = 0.0
+    if hasattr(detector, 'last_analytics') and detector.last_analytics is not None:
+        jerk_score = detector.last_analytics.get('jerk_score', 0.0)
+    
+    total_score = jerk_score + nut_value
+    
+    print(f"[DEBUG] Scores API: jerk_score={jerk_score}, nut_value={nut_value}, total={total_score}")
+    
+    return jsonify({
+        'jerk_score': float(jerk_score),
+        'nut_value': float(nut_value),
+        'total_score': float(total_score)
+    })
+
+@app.route('/api/leaderboard/submit', methods=['POST'])
+def submit_score():
+    """Submit a score to the leaderboard"""
+    global nut_value
+    
+    data = request.get_json()
+    username = data.get('username', 'Daniel Guo')
+    
+    # Get jerk score from last analytics if available
+    jerk_score = 0.0
+    if hasattr(detector, 'last_analytics') and detector.last_analytics is not None:
+        jerk_score = detector.last_analytics.get('jerk_score', 0.0)
+    
+    total_score = jerk_score + nut_value
+    
+    if total_score <= 0:
+        return jsonify({'success': False, 'message': 'No score to submit'}), 400
+    
+    # Save to database
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    timestamp = datetime.now().isoformat()
+    c.execute('''
+        INSERT INTO scores (username, total_score, jerk_score, nut_value, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (username, total_score, jerk_score, nut_value, timestamp))
+    conn.commit()
+    conn.close()
+    
+    print(f"[DEBUG] Score submitted: {username} - Total: {total_score}, Jerk: {jerk_score}, Nut: {nut_value}")
+    
+    return jsonify({
+        'success': True,
+        'message': 'Score submitted successfully'
+    })
+
+@app.route('/leaderboard')
+def leaderboard():
+    """Display the leaderboard page"""
+    return render_template('leaderboard.html')
+
+@app.route('/api/leaderboard', methods=['GET'])
+def get_leaderboard():
+    """Get leaderboard data"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    
+    # Get all scores grouped by username
+    c.execute('''
+        SELECT username, total_score
+        FROM scores
+        ORDER BY username, timestamp DESC
+    ''')
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    # Group scores by username and calculate statistics
+    user_scores = {}
+    for username, total_score in rows:
+        if username not in user_scores:
+            user_scores[username] = []
+        user_scores[username].append(float(total_score))
+    
+    # Calculate statistics for each user
+    leaderboard_data = []
+    for username, scores in user_scores.items():
+        avg_score = np.mean(scores)
+        max_score = np.max(scores)
+        num_scores = len(scores)
+        std_dev = np.std(scores) if num_scores > 1 else 0.0
+        
+        leaderboard_data.append({
+            'username': username,
+            'avg_score': float(avg_score),
+            'max_score': float(max_score),
+            'num_scores': int(num_scores),
+            'std_dev': float(std_dev)
+        })
+    
+    # Sort by average score descending
+    leaderboard_data.sort(key=lambda x: x['avg_score'], reverse=True)
+    
+    return jsonify({'leaderboard': leaderboard_data})
 
 if __name__ == '__main__':
     print("[DEBUG] Starting Flask application...")

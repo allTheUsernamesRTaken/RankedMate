@@ -222,6 +222,11 @@
             color: #4CAF50;
         }
         
+        #analyticsJerk {
+            color: #FFD700;
+            font-weight: bold;
+        }
+        
         .chart-container {
             position: relative;
             height: 300px;
@@ -251,12 +256,174 @@
         .error-message.active {
             display: block;
         }
+        
+        .nut-upload-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #2a2a2a;
+            color: #fff;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .nut-upload-button:hover {
+            background: #3a3a3a;
+            transform: scale(1.05);
+        }
+        
+        .scores-section {
+            margin-top: 40px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+            border: 2px solid #4CAF50;
+        }
+        
+        .scores-title {
+            text-align: center;
+            font-size: 24px;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        
+        .scores-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            text-align: center;
+        }
+        
+        .score-item {
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+        }
+        
+        .score-label {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+        
+        .score-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .score-value.jerk {
+            color: #4CAF50;
+        }
+        
+        .score-value.nut {
+            color: #4CAF50;
+        }
+        
+        .score-value.total {
+            color: #FFD700;
+            font-size: 36px;
+        }
+        .navbar {
+            background: #2a2a2a;
+            padding: 15px 20px;
+            border-bottom: 2px solid #4CAF50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .navbar-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .navbar-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .navbar-button {
+            padding: 8px 16px;
+            background: #1a1a1a;
+            color: #fff;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .navbar-button:hover {
+            background: #3a3a3a;
+        }
+        
+        .navbar-username {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .username-input {
+            background: #1a1a1a;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            padding: 6px 12px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            width: 150px;
+            outline: none;
+        }
+        
+        .username-input:focus {
+            border-color: #66ff66;
+            background: #2a2a2a;
+        }
+        
+        .submit-score-button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .submit-score-button:hover {
+            background: #66ff66;
+            transform: scale(1.05);
+        }
+        
+        .submit-score-button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
     </style>
 </head>
 <body>
+    <nav class="navbar">
+        <div class="navbar-title">🥕 Rubbing Analyzer</div>
+        <div class="navbar-right">
+            <a href="/leaderboard" class="navbar-button">Leaderboard</a>
+            <input type="text" class="username-input" id="usernameInput" value="Daniel Guo" placeholder="Enter username">
+        </div>
+    </nav>
+    
     <div class="container">
-        <h1>🥕 Carrot Rubbing Analyzer</h1>
-        
         <div class="error-message" id="errorMessage"></div>
         
         <div class="video-container">
@@ -276,6 +443,16 @@
                 <div>
                     <div class="timer-display" id="timerDisplay">0.00</div>
                     <div class="timer-label" id="timerLabel">Hold to Start</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <label for="nutPhotoUpload" class="nut-upload-button">
+                    🥛 Nut Meter
+                    <input type="file" id="nutPhotoUpload" accept="image/jpeg,image/jpg,image/png" style="display: none;">
+                </label>
+                <div id="nutValueDisplay" style="margin-top: 10px; font-size: 24px; font-weight: bold; color: #4CAF50; display: none;">
+                    Nut Number: <span id="nutValue">0.00</span>
                 </div>
             </div>
         </div>
@@ -311,13 +488,36 @@
                     <div class="analytics-stat-value" id="analyticsAvg">0.00</div>
                 </div>
                 <div class="analytics-stat">
-                    <div class="analytics-stat-label">Std Deviation</div>
-                    <div class="analytics-stat-value" id="analyticsStd">0.00</div>
+                    <div class="analytics-stat-label">Pattern Consistency</div>
+                    <div class="analytics-stat-value" id="analyticsStd">0%</div>
+                </div>
+                <div class="analytics-stat">
+                    <div class="analytics-stat-label">Jerk Score</div>
+                    <div class="analytics-stat-value" id="analyticsJerk">0.00</div>
                 </div>
             </div>
             <div class="chart-container">
                 <canvas id="motionChart"></canvas>
             </div>
+        </div>
+        
+        <div class="scores-section" id="scoresSection" style="display: none;">
+            <div class="scores-title">Final Scores</div>
+            <div class="scores-grid">
+                <div class="score-item">
+                    <div class="score-label">Jerk Score</div>
+                    <div class="score-value jerk" id="finalJerkScore">0.00</div>
+                </div>
+                <div class="score-item">
+                    <div class="score-label">Nut Value</div>
+                    <div class="score-value nut" id="finalNutValue">0.00</div>
+                </div>
+                <div class="score-item">
+                    <div class="score-label">Total Score</div>
+                    <div class="score-value total" id="finalTotalScore">0.00</div>
+                </div>
+            </div>
+            <button class="submit-score-button" id="submitScoreButton" onclick="submitScore()">Submit Score to Leaderboard</button>
         </div>
         
         <div class="debug-info" id="debugInfo">
@@ -348,9 +548,40 @@
             debugLog('Page loaded, initializing...');
             setupTimerButton();
             setupVectorsToggle();
+            setupNutUpload();
+            setupUsernameInput();
             startStatsUpdates();
             initializeChart();
+            updateScoresSection();
         });
+        
+        // Setup username input with localStorage persistence
+        function setupUsernameInput() {
+            const usernameInput = document.getElementById('usernameInput');
+            
+            // Load saved username from localStorage
+            const savedUsername = localStorage.getItem('rubbingAnalyzer_username');
+            if (savedUsername) {
+                usernameInput.value = savedUsername;
+            }
+            
+            // Save username to localStorage when changed
+            usernameInput.addEventListener('change', function() {
+                const username = this.value.trim();
+                if (username) {
+                    localStorage.setItem('rubbingAnalyzer_username', username);
+                    debugLog(`Username saved: ${username}`);
+                }
+            });
+            
+            // Also save on blur (when user clicks away)
+            usernameInput.addEventListener('blur', function() {
+                const username = this.value.trim();
+                if (username) {
+                    localStorage.setItem('rubbingAnalyzer_username', username);
+                }
+            });
+        }
         
         // Setup timer button
         function setupTimerButton() {
@@ -469,6 +700,8 @@
                     
                     // Show analytics
                     displayAnalytics(data.analytics);
+                    // Update scores section after timer stops
+                    updateScoresSection();
                 } else {
                     debugLog(`Failed to stop timer: ${data.message}`);
                     showError(data.message);
@@ -521,6 +754,80 @@
                 videoFeed.src = url;
                 debugLog(`Motion vectors ${vectorsVisible ? 'enabled' : 'disabled'}`);
             });
+        }
+        
+        // Setup nut photo upload
+        function setupNutUpload() {
+            const uploadInput = document.getElementById('nutPhotoUpload');
+            const nutValueDisplay = document.getElementById('nutValueDisplay');
+            const nutValueSpan = document.getElementById('nutValue');
+            
+            uploadInput.addEventListener('change', async function(e) {
+                const file = e.target.files[0];
+                if (!file) {
+                    return;
+                }
+                
+                debugLog(`Uploading nut meter photo: ${file.name}`);
+                
+                // Show loading state
+                nutValueDisplay.style.display = 'block';
+                nutValueSpan.textContent = 'Processing...';
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('photo', file);
+                
+                try {
+                    const response = await fetch('/api/nut/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const nutNumber = data.nut_value.toFixed(2);
+                        nutValueSpan.textContent = nutNumber;
+                        debugLog(`Nut value calculated: ${nutNumber}`);
+                        updateScoresSection();
+                    } else {
+                        nutValueSpan.textContent = 'Error';
+                        showError(data.message || 'Failed to process image');
+                        debugLog(`Error: ${data.message}`);
+                    }
+                } catch (error) {
+                    nutValueSpan.textContent = 'Error';
+                    showError('Failed to upload image: ' + error.message);
+                    debugLog(`Upload error: ${error.message}`);
+                }
+                
+                // Reset file input
+                e.target.value = '';
+            });
+        }
+        
+        // Update scores section
+        async function updateScoresSection() {
+            try {
+                const response = await fetch('/api/scores');
+                const data = await response.json();
+                
+                debugLog(`Updating scores section: jerk=${data.jerk_score}, nut=${data.nut_value}, total=${data.total_score}`);
+                
+                const scoresSection = document.getElementById('scoresSection');
+                const finalJerkScore = document.getElementById('finalJerkScore');
+                const finalNutValue = document.getElementById('finalNutValue');
+                const finalTotalScore = document.getElementById('finalTotalScore');
+                
+                // Always show section if we have any data
+                scoresSection.style.display = 'block';
+                finalJerkScore.textContent = data.jerk_score.toFixed(2);
+                finalNutValue.textContent = data.nut_value.toFixed(2);
+                finalTotalScore.textContent = data.total_score.toFixed(2);
+            } catch (error) {
+                debugLog(`Error updating scores: ${error.message}`);
+            }
         }
         
         // Start stats updates
@@ -588,12 +895,15 @@
         
         // Display analytics
         function displayAnalytics(analytics) {
-            debugLog(`Displaying analytics: duration=${analytics.duration}, avg=${analytics.average_motion}, std=${analytics.std_dev}`);
+            debugLog(`Displaying analytics: duration=${analytics.duration}, avg=${analytics.average_motion}, std=${analytics.std_dev}, jerk_score=${analytics.jerk_score}`);
             
             // Update stat displays
             document.getElementById('analyticsDuration').textContent = analytics.duration.toFixed(2) + 's';
             document.getElementById('analyticsAvg').textContent = analytics.average_motion.toFixed(2);
-            document.getElementById('analyticsStd').textContent = analytics.std_dev.toFixed(2);
+            // Display pattern consistency as percentage (0-100%)
+            const patternConsistency = (analytics.pattern_consistency || (1.0 - analytics.std_dev / 10.0)) * 100;
+            document.getElementById('analyticsStd').textContent = patternConsistency.toFixed(1) + '%';
+            document.getElementById('analyticsJerk').textContent = analytics.jerk_score.toFixed(2);
             
             // Update chart
             if (motionChart && analytics.motion_over_time) {
@@ -625,6 +935,64 @@
             debugLog('Video feed error - camera may not be available');
             showError('Unable to load video feed. Make sure your camera is connected and not being used by another application.');
         });
+        
+        // Submit score to leaderboard
+        async function submitScore() {
+            const button = document.getElementById('submitScoreButton');
+            const usernameInput = document.getElementById('usernameInput');
+            const username = usernameInput.value.trim();
+            
+            if (!username) {
+                showError('Please enter a username');
+                return;
+            }
+            
+            const originalText = button.textContent;
+            
+            button.disabled = true;
+            button.textContent = 'Submitting...';
+            
+            try {
+                const response = await fetch('/api/leaderboard/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    button.textContent = 'Score Submitted!';
+                    button.style.background = '#66ff66';
+                    debugLog('Score submitted successfully');
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '#4CAF50';
+                        button.disabled = false;
+                    }, 2000);
+                } else {
+                    button.textContent = 'Error';
+                    showError(data.message || 'Failed to submit score');
+                    debugLog(`Error submitting score: ${data.message}`);
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                }
+            } catch (error) {
+                button.textContent = 'Error';
+                showError('Failed to submit score: ' + error.message);
+                debugLog(`Submit error: ${error.message}`);
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                }, 2000);
+            }
+        }
     </script>
 </body>
 </html>
