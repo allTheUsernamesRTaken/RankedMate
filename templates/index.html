@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrot Rubbing Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+        
+        .video-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        #videoFeed {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stats-display {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat-box {
+            background: #2a2a2a;
+            padding: 15px 25px;
+            border-radius: 8px;
+            border: 1px solid #4CAF50;
+            min-width: 150px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .timer-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 4px solid #4CAF50;
+            background: #2a2a2a;
+            color: #fff;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .timer-button:hover {
+            background: #3a3a3a;
+            transform: scale(1.05);
+        }
+        
+        .timer-button:active {
+            transform: scale(0.95);
+        }
+        
+        .timer-button.holding {
+            background: #ff4444;
+            border-color: #ff6666;
+        }
+        
+        .timer-button.running {
+            background: #4CAF50;
+            border-color: #66ff66;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .timer-display {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .timer-label {
+            font-size: 14px;
+            color: #aaa;
+        }
+        
+        .toggle-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+        
+        .analytics-panel {
+            display: none;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #4CAF50;
+            margin-top: 20px;
+        }
+        
+        .analytics-panel.active {
+            display: block;
+        }
+        
+        .analytics-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .analytics-stat {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .analytics-stat-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        .analytics-stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .debug-info {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .error-message {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🥕 Carrot Rubbing Analyzer</h1>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="video-container">
+            <img id="videoFeed" src="/video_feed?vectors=true" alt="Video Feed">
+        </div>
+        
+        <div class="controls">
+            <div class="toggle-controls">
+                <label>Show Motion Vectors:</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="vectorsToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="timer-button" id="timerButton">
+                <div>
+                    <div class="timer-display" id="timerDisplay">0.00</div>
+                    <div class="timer-label" id="timerLabel">Hold to Start</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats-display">
+            <div class="stat-box">
+                <div class="stat-label">Frequency</div>
+                <div class="stat-value" id="frequencyValue">0.00 Hz</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Rubs/Min</div>
+                <div class="stat-value" id="rubsValue">0.0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Confidence</div>
+                <div class="stat-value" id="confidenceValue">0.00</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Vertical Motion</div>
+                <div class="stat-value" id="motionValue">0.00</div>
+            </div>
+        </div>
+        
+        <div class="analytics-panel" id="analyticsPanel">
+            <h2 style="margin-bottom: 15px; color: #4CAF50;">Session Analytics</h2>
+            <div class="analytics-stats">
+                <div class="analytics-stat">
+                    <div class="analytics-stat-label">Duration</div>
+                    <div class="analytics-stat-value" id="analyticsDuration">0.00s</div>
+                </div>
+                <div class="analytics-stat">
+                    <div class="analytics-stat-label">Avg Vertical Motion</div>
+                    <div class="analytics-stat-value" id="analyticsAvg">0.00</div>
+                </div>
+                <div class="analytics-stat">
+                    <div class="analytics-stat-label">Std Deviation</div>
+                    <div class="analytics-stat-value" id="analyticsStd">0.00</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="motionChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="debug-info" id="debugInfo">
+            <strong>Debug Info:</strong><br>
+            <span id="debugText">Initializing...</span>
+        </div>
+    </div>
+    
+    <script>
+        // Global state
+        let timerState = 'idle'; // 'idle', 'holding', 'running'
+        let holdTimeout = null;
+        let statsUpdateInterval = null;
+        let timerUpdateInterval = null;
+        let motionChart = null;
+        let vectorsVisible = true;
+        
+        // Debug logging
+        function debugLog(message) {
+            const debugText = document.getElementById('debugText');
+            const timestamp = new Date().toLocaleTimeString();
+            debugText.innerHTML = `[${timestamp}] ${message}<br>` + debugText.innerHTML;
+            console.log(`[DEBUG] ${message}`);
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            debugLog('Page loaded, initializing...');
+            setupTimerButton();
+            setupVectorsToggle();
+            startStatsUpdates();
+            initializeChart();
+        });
+        
+        // Setup timer button
+        function setupTimerButton() {
+            const button = document.getElementById('timerButton');
+            const timerDisplay = document.getElementById('timerDisplay');
+            const timerLabel = document.getElementById('timerLabel');
+            
+            let mouseDownTime = null;
+            const HOLD_DURATION = 100; // ms to hold before starting
+            
+            button.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                debugLog('Timer button pressed down');
+                
+                if (timerState === 'idle') {
+                    mouseDownTime = Date.now();
+                    button.classList.add('holding');
+                    timerState = 'holding';
+                    timerLabel.textContent = 'Release to Start';
+                    
+                    holdTimeout = setTimeout(() => {
+                        // This won't actually start, we wait for release
+                    }, HOLD_DURATION);
+                } else if (timerState === 'running') {
+                    // Stop timer
+                    debugLog('Stopping timer...');
+                    stopTimer();
+                }
+            });
+            
+            button.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                
+                if (timerState === 'holding') {
+                    const holdTime = Date.now() - mouseDownTime;
+                    debugLog(`Button released after ${holdTime}ms`);
+                    
+                    if (holdTime >= HOLD_DURATION) {
+                        startTimer();
+                    } else {
+                        button.classList.remove('holding');
+                        timerState = 'idle';
+                        timerLabel.textContent = 'Hold to Start';
+                    }
+                }
+                
+                if (holdTimeout) {
+                    clearTimeout(holdTimeout);
+                    holdTimeout = null;
+                }
+            });
+            
+            button.addEventListener('mouseleave', function(e) {
+                if (timerState === 'holding') {
+                    button.classList.remove('holding');
+                    timerState = 'idle';
+                    timerLabel.textContent = 'Hold to Start';
+                    if (holdTimeout) {
+                        clearTimeout(holdTimeout);
+                        holdTimeout = null;
+                    }
+                }
+            });
+        }
+        
+        // Start timer
+        async function startTimer() {
+            debugLog('Starting timer...');
+            const button = document.getElementById('timerButton');
+            const timerLabel = document.getElementById('timerLabel');
+            
+            try {
+                const response = await fetch('/api/timer/start', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    timerState = 'running';
+                    button.classList.remove('holding');
+                    button.classList.add('running');
+                    timerLabel.textContent = 'Click to Stop';
+                    debugLog('Timer started successfully');
+                    
+                    // Hide analytics panel
+                    document.getElementById('analyticsPanel').classList.remove('active');
+                    
+                    // Start timer updates
+                    startTimerUpdates();
+                } else {
+                    debugLog(`Failed to start timer: ${data.message}`);
+                    showError(data.message);
+                }
+            } catch (error) {
+                debugLog(`Error starting timer: ${error.message}`);
+                showError('Failed to start timer: ' + error.message);
+            }
+        }
+        
+        // Stop timer
+        async function stopTimer() {
+            debugLog('Stopping timer...');
+            const button = document.getElementById('timerButton');
+            const timerLabel = document.getElementById('timerLabel');
+            
+            try {
+                const response = await fetch('/api/timer/stop', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success && data.analytics) {
+                    timerState = 'idle';
+                    button.classList.remove('running');
+                    timerLabel.textContent = 'Hold to Start';
+                    debugLog('Timer stopped successfully');
+                    
+                    // Stop timer updates
+                    stopTimerUpdates();
+                    
+                    // Show analytics
+                    displayAnalytics(data.analytics);
+                } else {
+                    debugLog(`Failed to stop timer: ${data.message}`);
+                    showError(data.message);
+                }
+            } catch (error) {
+                debugLog(`Error stopping timer: ${error.message}`);
+                showError('Failed to stop timer: ' + error.message);
+            }
+        }
+        
+        // Start timer updates
+        function startTimerUpdates() {
+            if (timerUpdateInterval) {
+                clearInterval(timerUpdateInterval);
+            }
+            
+            timerUpdateInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/timer/status');
+                    const data = await response.json();
+                    
+                    if (data.active) {
+                        document.getElementById('timerDisplay').textContent = data.elapsed.toFixed(2);
+                    } else {
+                        stopTimerUpdates();
+                    }
+                } catch (error) {
+                    debugLog(`Error updating timer: ${error.message}`);
+                }
+            }, 10); // Update every 10ms for smooth display
+        }
+        
+        // Stop timer updates
+        function stopTimerUpdates() {
+            if (timerUpdateInterval) {
+                clearInterval(timerUpdateInterval);
+                timerUpdateInterval = null;
+            }
+            document.getElementById('timerDisplay').textContent = '0.00';
+        }
+        
+        // Setup vectors toggle
+        function setupVectorsToggle() {
+            const toggle = document.getElementById('vectorsToggle');
+            const videoFeed = document.getElementById('videoFeed');
+            
+            toggle.addEventListener('change', function() {
+                vectorsVisible = toggle.checked;
+                const url = `/video_feed?vectors=${vectorsVisible}`;
+                videoFeed.src = url;
+                debugLog(`Motion vectors ${vectorsVisible ? 'enabled' : 'disabled'}`);
+            });
+        }
+        
+        // Start stats updates
+        function startStatsUpdates() {
+            statsUpdateInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/stats');
+                    const data = await response.json();
+                    
+                    document.getElementById('frequencyValue').textContent = data.frequency.toFixed(2) + ' Hz';
+                    document.getElementById('rubsValue').textContent = (data.frequency * 60).toFixed(1);
+                    document.getElementById('confidenceValue').textContent = data.confidence.toFixed(2);
+                    document.getElementById('motionValue').textContent = data.vertical_motion.toFixed(2);
+                } catch (error) {
+                    debugLog(`Error updating stats: ${error.message}`);
+                }
+            }, 100); // Update every 100ms
+        }
+        
+        // Initialize chart
+        function initializeChart() {
+            const ctx = document.getElementById('motionChart').getContext('2d');
+            motionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Vertical Motion',
+                        data: [],
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Vertical Motion'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (seconds)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#fff'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Display analytics
+        function displayAnalytics(analytics) {
+            debugLog(`Displaying analytics: duration=${analytics.duration}, avg=${analytics.average_motion}, std=${analytics.std_dev}`);
+            
+            // Update stat displays
+            document.getElementById('analyticsDuration').textContent = analytics.duration.toFixed(2) + 's';
+            document.getElementById('analyticsAvg').textContent = analytics.average_motion.toFixed(2);
+            document.getElementById('analyticsStd').textContent = analytics.std_dev.toFixed(2);
+            
+            // Update chart
+            if (motionChart && analytics.motion_over_time) {
+                const times = analytics.motion_over_time.map(d => d[0]);
+                const motions = analytics.motion_over_time.map(d => d[1]);
+                
+                motionChart.data.labels = times;
+                motionChart.data.datasets[0].data = motions;
+                motionChart.update();
+            }
+            
+            // Show analytics panel
+            document.getElementById('analyticsPanel').classList.add('active');
+        }
+        
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+            
+            setTimeout(() => {
+                errorDiv.classList.remove('active');
+            }, 5000);
+        }
+        
+        // Handle video feed errors
+        document.getElementById('videoFeed').addEventListener('error', function() {
+            debugLog('Video feed error - camera may not be available');
+            showError('Unable to load video feed. Make sure your camera is connected and not being used by another application.');
+        });
+    </script>
+</body>
+</html>
+
